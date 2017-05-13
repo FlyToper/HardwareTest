@@ -1,0 +1,10 @@
+E:\Documents\Visual Studio 2013\Projects\硬件调试\硬件调试\bin\Debug\硬件调试.exe.config
+E:\Documents\Visual Studio 2013\Projects\硬件调试\硬件调试\obj\Debug\硬件调试.csprojResolveAssemblyReference.cache
+E:\Documents\Visual Studio 2013\Projects\硬件调试\硬件调试\obj\Debug\硬件调试.Form1.resources
+E:\Documents\Visual Studio 2013\Projects\硬件调试\硬件调试\obj\Debug\硬件调试.Properties.Resources.resources
+E:\Documents\Visual Studio 2013\Projects\硬件调试\硬件调试\obj\Debug\硬件调试.csproj.GenerateResource.Cache
+E:\Documents\Visual Studio 2013\Projects\硬件调试\硬件调试\bin\Debug\硬件调试.exe
+E:\Documents\Visual Studio 2013\Projects\硬件调试\硬件调试\bin\Debug\硬件调试.pdb
+E:\Documents\Visual Studio 2013\Projects\硬件调试\硬件调试\obj\Debug\硬件调试.exe
+E:\Documents\Visual Studio 2013\Projects\硬件调试\硬件调试\obj\Debug\硬件调试.pdb
+E:\Documents\Visual Studio 2013\Projects\硬件调试\硬件调试\obj\Debug\硬件调试.Form2.resources
