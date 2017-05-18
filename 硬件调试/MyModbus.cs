@@ -83,7 +83,7 @@ namespace 硬件调试
         /// <param name="data_len">寄存器个数</param>
         /// <param name="R_CMD_LEN">命令长度</param>
         /// <returns></returns>
-        public byte[] GetReadFrame(byte mdaddr, byte R_CMD, ushort min_reg, ushort data_len, int R_CMD_LEN)
+        public byte[] GetReadFrame(byte mdaddr, byte R_CMD, ushort min_reg, ushort data_len, int R_CMD_LEN,int type = 1)
         {
             //主机命令帧格式
             //  字节    功能描述            例子
@@ -108,10 +108,20 @@ namespace 硬件调试
             //设置开始寄存器
             message[2] = WORD_HI(min_reg);
             message[3] = WORD_LO(min_reg);
+            
 
             //设置数据长度
-            message[4] = WORD_HI(data_len);
-            message[5] = WORD_LO(data_len);
+            if (type == 1)
+            {
+                message[4] = WORD_HI(data_len);
+                message[5] = WORD_LO(data_len);
+            }
+            else//处理 发送写入单个输出
+            {
+                message[4] = WORD_LO(data_len);
+                message[5] = WORD_HI(data_len);
+            }
+            
 
             //设置 CRC
             crc = CRC16(message, 0, R_CMD_LEN - 3);
@@ -122,6 +132,53 @@ namespace 硬件调试
 
             return message;
         }
+
+        //public byte[] GetReadFrame
+
+        /// <summary>
+        /// 【获取长字节数据帧】
+        ///  20170518
+        /// </summary>
+        /// <param name="sdata"></param>
+        /// <returns></returns>
+        public byte[] GetLongReadFrame(byte[] sdata)
+        {
+            //从机地址，
+            //功能码，
+            //（线圈的）起始地址高，
+            //（线圈的）起始地址低，
+            //线圈数量高，
+            //线圈数量低，
+            //（线圈的）字节计数（1-8个线圈是1个字节，2-16个线圈是2字节，byteCount=线圈数/8），
+            //线圈的输出状态，
+            //CRC高，
+            //CRC低
+            ushort crc;
+    
+            byte[] message = new byte[10];
+            message[0] = sdata[0];
+            message[1] = sdata[1];
+            message[2] = WORD_HI(sdata[2]);//线圈地址
+            message[3] = WORD_LO(sdata[2]);
+            message[4] = WORD_HI(sdata[3]);//线圈数量
+            message[5] = WORD_LO(sdata[3]);
+            message[6] = sdata[4];//字节数
+            message[7] = sdata[5];//线圈输出状态
+            
+
+
+
+
+
+            //设置 CRC
+            crc = CRC16(message, 0, 7);
+
+            message[8] = WORD_HI(crc);//CRC校验码高位
+            message[9] = WORD_LO(crc);//CRC校验码低位
+
+            return message;
+        }
+
 
         /// <summary>
         /// 【格式化输出，校验读取的数据】

@@ -28,6 +28,8 @@ namespace 硬件调试
         private int youtput = 0;//输出
         private string macaddr = "01";//当前连接的从机地址
 
+        private string sendDataStr = "";//发送的数据
+
         //public static int m_io = 0;//io点
 
         public Form1()
@@ -297,7 +299,7 @@ namespace 硬件调试
         /// <param name="cmd">功能码</param>
         /// <param name="regAddr">地址码</param>
         /// <param name="regNum"></param>
-        private void SendData(string address, string cmd, string regAddr, string regNum)
+        private void SendData(string address, string cmd, string regAddr, string regNum,int type = 1)
         {
             try
             {
@@ -311,7 +313,7 @@ namespace 硬件调试
 
                 //Modbus相关处理对象
                 MyModbus modbus = new MyModbus();
-                byte[] text = modbus.GetReadFrame(address1, cmd1, regAddr1, regNum1, 8);
+                byte[] text = modbus.GetReadFrame(address1, cmd1, regAddr1, regNum1, 8,type);
                 sp.Write(text, 0, 8);
 
 
@@ -418,6 +420,15 @@ namespace 硬件调试
                     {
                         ShowMessage(2, "读取失败");
                     }
+
+                    if (data[3] == strFormat(0))
+                    {
+                        ShowMessage(2, "当前没有输入");
+                    }
+                    else 
+                    {
+                        ShowMessage(1, "当前有输入");
+                    }
                 }
                 else if (btnType == 3)//自动读取IO
                 {
@@ -482,11 +493,15 @@ namespace 硬件调试
         {
             if (type == 1)//Send
             {
-                tbxShowData.Text += "[ Send:" + data + " ] [ Time:" + DateTime.Now + " ]\r\n";
+                //tbxShowData.Text += "[ Send:" + data + " ] [ Time:" + DateTime.Now + " ]\r\n";
+                this.sendDataStr = "[ Send:" + data + " ] [ Time:" + DateTime.Now + " ]\r\n";
+                
             }
             else//接收数据
             {
-                tbxShowData.Text += "[ Recv:" + data + " ] [ Time:" + DateTime.Now + " ]\r\n\r\n";
+                //tbxShowData.Text += "[ Recv:" + data + " ] [ Time:" + DateTime.Now + " ]\r\n\r\n";
+
+                tbxShowData.Text = sendDataStr + "[ Recv:" + data + " ] [ Time:" + DateTime.Now + " ]\r\n\r\n" + tbxShowData.Text;
             }
         }
 
@@ -522,7 +537,7 @@ namespace 硬件调试
                 //Label x2 = GetLabel("lbl" + (i + 100), "●", 24, 16, 47, 24 + (24 * i),font);
 
                 groupBox4.Controls.Add(GetLabel("X" + i, "X" + i, 24, 16, 23, 24 + (24 * i), font));
-                groupBox4.Controls.Add(GetLabel("lbl" + (i + 100), "●", 24, 16, 47, 24 + (24 * i), font));
+                groupBox4.Controls.Add(GetLabel("lbl" + (i + 100), "●", 24, 16, 47, 27 + (24 * i), new Font("黑体",8)));
                 
             }
 
@@ -539,6 +554,8 @@ namespace 硬件调试
                 ck.Font = font;
                 ck.Size = new Size(46, 20);
                 ck.Location = new Point(ybx, 23 + (24 * i));
+
+                ck.CheckedChanged += new EventHandler(ckOutput_Change);//绑定CheckBox的更改事件
 
                 groupBox4.Controls.Add(ck);
  
@@ -557,12 +574,20 @@ namespace 硬件调试
                
                 groupBox4.Controls.Add(btn1);
 
+
+                //自动读取按钮
+                Button btn2 = GetButton("btnAutoReadIO", "自动读取", 80, 31, 23, btnHeight + 40, font);//23 78
+                btn2.Click += new EventHandler(btnAutoReadIO_Click);
+
+                groupBox4.Controls.Add(btn2);
+
+
                 TextBox tb1 = new TextBox();
                 tb1.Name = "tbxAutoReadTime";
                 tb1.Text = "100";
                 tb1.Font = font;
                 tb1.Size = new Size(50, 23);
-                tb1.Location = new Point(23, btnHeight + 43);
+                tb1.Location = new Point(23, btnHeight + 78);//23 43
                 groupBox4.Controls.Add(tb1);
 
                 Label lb1 = GetLabel("lb1", "(ms)", 60, 16, 70, btnHeight + 47, font);
@@ -570,10 +595,7 @@ namespace 硬件调试
 
 
 
-                Button btn2 = GetButton("btnAutoReadIO", "自动读取", 80, 31, 23, btnHeight + 78, font);
-                btn2.Click += new EventHandler(btnAutoReadIO_Click);
-
-                groupBox4.Controls.Add(btn2);
+               
             }
             //3-2 输出按钮
             if (y > 0)
@@ -589,6 +611,54 @@ namespace 硬件调试
             }
 
         }
+
+        /// <summary>
+        /// 【输出CheckBox的change事件】
+        ///  20170516
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void ckOutput_Change(object sender, EventArgs e)
+        {
+            //1、关闭全部CheckBox
+            int k = 0;
+            for (int i = 0; i < youtput; i++)
+            {
+                try
+                {
+                    CheckBox ck = groupBox4.Controls.Find("Y" + i, false).First() as CheckBox;
+
+                    ck.CheckedChanged -= new EventHandler(ckOutput_Change);
+                    if (ck.Text != ((CheckBox)sender).Text)//判断是否为当前
+                    {
+                        ck.Checked = false;
+
+                    }
+                    else
+                    {
+                        k = i;//标识哪个CheckBox点击了
+                    }
+
+
+                    ck.CheckedChanged += new EventHandler(ckOutput_Change);
+
+                }
+                catch
+                {
+                    continue;
+                }  
+            }
+
+            string state = "00";//当前是否打开
+
+            if (((CheckBox)sender).Checked)
+            {
+                state = "FF";
+            }
+           
+            SendData(macaddr, "05", strFormat(k), state,2);
+        }
+
 
         /// <summary>
         /// 【读取-点击事件】
@@ -611,15 +681,33 @@ namespace 硬件调试
         /// <param name="e"></param>
         private void btnAutoReadIO_Click(object sender, EventArgs e)
         {
-            TextBox tb = (TextBox)groupBox4.Controls.Find("tbxAutoReadTime", false).First();
-            int time = Convert.ToInt32( tb.Text.Trim());
 
-            if(t1 == null)
-                t1 = new Timer();
-            t1.Interval = time;
-            
-            t1.Tick += RunAutoReadIO;
-            t1.Start();
+            //ShowMessage(1, sender.ToString());
+            //MessageBox.Show(((Button)sender).Text);
+            TextBox tb = (TextBox)groupBox4.Controls.Find("tbxAutoReadTime", false).First();
+
+            if (((Button)sender).Text == "自动读取")
+            {
+                ((Button)sender).Text = "关闭";
+                tb.Enabled = false;
+
+                int time = Convert.ToInt32(tb.Text.Trim());
+
+                if (t1 == null)
+                    t1 = new Timer();
+                t1.Interval = time;
+
+                t1.Tick += RunAutoReadIO;
+                t1.Start();
+
+                
+            }
+            else
+            {
+                t1.Dispose();
+                ((Button)sender).Text = "自动读取";
+                tb.Enabled = true;
+            }
 
 
             //MessageBox.Show("自动读取IO");
@@ -639,7 +727,7 @@ namespace 硬件调试
             //lblState.Text = (Convert.ToInt32(lblState.Text.Trim()) + 1).ToString();
 
             btnType = 2;//设置按钮类型
-            SendData(macaddr, "02", "00", string.Format("{0:00}", xinput));
+            SendData(macaddr, "02", "00", strFormat(xinput));
         }
 
         /// <summary>
@@ -657,13 +745,22 @@ namespace 硬件调试
                 {
                     CheckBox ck = groupBox4.Controls.Find("Y" + i, false).First() as CheckBox;
 
-                    ck.Checked = false;      
+                    ck.CheckedChanged -= new EventHandler(ckOutput_Change);
+                    ck.Checked = false;
+
+                    ck.CheckedChanged += new EventHandler(ckOutput_Change);
+
+
+   
+
                 }
                 catch
                 {
                     continue;
                 }  
             }
+
+            SendLongFrame();
         }
 
         /// <summary>
@@ -679,16 +776,69 @@ namespace 硬件调试
                 try
                 {
                     CheckBox ck = groupBox4.Controls.Find("Y" + i, false).First() as CheckBox;
+                    //1、去掉checkchanged事件
+                    ck.CheckedChanged -= new EventHandler(ckOutput_Change);
 
+                    //2、修改
                     ck.Checked = true;
+
+                    //3、绑定事件
+                    ck.CheckedChanged += new EventHandler(ckOutput_Change);
+                  
                 }
                 catch
                 {
                     continue;
                 }
             }
+
+            SendLongFrame();
         }
 
+        /// <summary>
+        /// 【发送“全开”和“全关”的长数据帧数据】
+        ///  20170518
+        /// </summary>
+        private void SendLongFrame()
+        {
+            if (!isOpen)
+                SetPortProperty();//设置并打开串口
+
+            string str = "";
+            for (int i = 0; i < youtput; i++)
+            {
+                CheckBox ck = groupBox4.Controls.Find("Y" + i, false).First() as CheckBox;
+                if (ck.Checked)
+                {
+                    str = "1" + str;
+                }
+                else
+                {
+                    str = "0" + str;
+                }
+            }
+
+            byte[] data =  
+            { 
+                Convert.ToByte(macaddr,16),//从机地址
+                Convert.ToByte("0F",16),//功能码
+                Convert.ToByte("00",16),//线圈起始地址
+                Convert.ToByte(youtput.ToString(),16),//线圈数量
+                Convert.ToByte( Math.Ceiling( Convert.ToDouble( youtput*1.0/8)).ToString(),16),//字节数
+                Convert.ToByte(string.Format("{0:X}", Convert.ToInt32(str, 2)).PadLeft(2,'0'),16),//线圈状态 0F
+            };
+
+            //str = str.PadLeft(8, '0');
+            //string.Format("{0:}", Convert.ToInt32(str, 2));
+
+            //MessageBox.Show("你点击了" + string.Format("{0:X}", Convert.ToInt32(str, 2)).PadLeft(2,'0'));
+
+            MyModbus modbus = new MyModbus();
+            byte[] text = modbus.GetLongReadFrame(data);
+            sp.Write(text, 0, 10);
+
+            ShowDataByTBX(1, BitConverter.ToString(text));
+        }
 
         /// <summary>
         /// 【获取Label】
@@ -739,8 +889,17 @@ namespace 硬件调试
 
             return btn;
         }
-     
 
+        /// <summary>
+        /// 【把数字都转换成2位数】
+        ///  20170514
+        /// </summary>
+        /// <param name="data"></param>
+        /// <returns></returns>
+        private string strFormat(int data)
+        {
+            return string.Format("{0:00}", data);
+        }
        
     }
 }
