@@ -6,13 +6,14 @@ using System.Drawing;
 using System.IO.Ports;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace 硬件调试
 {
     public partial class Form2 : Form
     {
+        
+
         public SerialPort sp = null;//串口对象
         public bool isOpen = false;//是否打开串口
 
@@ -21,9 +22,19 @@ namespace 硬件调试
         public string stopbits = "";//停止位
         public string parity = "";//奇偶校验
 
-        private int btnType = 0;//按钮类型 1-连接 2-其他
+        private int btnType = 0;//按钮类型 1-连接 2-读取 3-设置
         //private int resend = 1;//当前重发次数
         public Form PF = null;
+
+        //读取串口相关参数
+        private Timer timer1 = null;
+        private int k1 = 1;
+        private int k2 = 0;
+        private int k3 = 0;
+        private int[] brate = { 4800, 9600, 14400, 19200, 28800, 38400, 57600, 115200 };
+        private Parity[] p = { Parity.None, Parity.Odd, Parity.Even };
+        private bool isReadOK = false;
+
 
         //数据接收使用的代理
         private delegate void myDelegate(byte[] readBuffer);
@@ -39,6 +50,11 @@ namespace 硬件调试
         private void Form2_Load(object sender, EventArgs e)
         {
             cbxMacAddress.SelectedIndex = 0;//从机地址
+
+            cbxSetAddress.SelectedIndex = 0;//设置的从机地址
+            cbxSetBaudRate.SelectedIndex = 0;//设置的波特率
+            cbxSetParity.SelectedIndex = 0;//设置的奇偶校验位
+
         }
         
         
@@ -298,14 +314,15 @@ namespace 硬件调试
                 ShowDataByTBX(2, rst);//展示数据
                 ShowMessage(1, "读取成功");
 
+
+                string[] data = rst.Split('-');
+                int address = Convert.ToInt32(cbxMacAddress.Text.Trim());
                 if (btnType == 1)//从机连接
                 {
-                    string[] data = rst.Split('-');
-                    int address = Convert.ToInt32(cbxMacAddress.Text.Trim());
-
+                   
                     if (string.Format("{0:00}", address) == data[0])
                     {
-                       // Form1.m_io = Convert.ToInt32( data[4]);
+                        // Form1.m_io = Convert.ToInt32( data[4]);
                         //Form1.ChangIO(64);
                         //Form pf = this.MdiParent;
                         if (PF.GetType() == typeof(Form1))
@@ -315,12 +332,22 @@ namespace 硬件调试
                         ShowMessage(1, "从机连接成功");
                         MessageBox.Show("连接成功！", "系统提示");
                         this.Dispose();
-                        
+
                     }
                     else
                     {
                         ShowMessage(2, "从机连接失败");
                     }
+                }
+                else if(btnType == 2)//读取串口
+                {
+                    if ("6D" == data[3])
+                    {
+                        this.isReadOK = true;
+                        ShowMessage(1, "读取串口成功！");
+                        //测试成功。
+                    }
+
                 }
             }
             catch
@@ -375,6 +402,212 @@ namespace 硬件调试
                 sp.Dispose();
         }
 
+        /// <summary>
+        /// 【读取串口点击事件】
+        ///  20170519
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void btnRead_Click(object sender, EventArgs e)
+        {
+            if (btnRead.Text == "读取串口")
+            {
+
+                if (!isOpen)
+                    SetPortProperty();//设置串口
+
+                if (timer1 == null)
+                    timer1 = new Timer();
+                timer1.Interval = 1000;
+                timer1.Tick += RunAction;
+                timer1.Start();
+                btnType = 2;//设置按钮类型
+
+                btnRead.Text = "停止读取";
+
+                BanControllers(1);//禁用控件
+            }
+            else
+            {
+                timer1.Dispose();
+                k1 = 1;
+                k2 = k3 = 0;//初始化数据
+                isReadOK = false;
+
+                btnRead.Text = "读取串口";
+
+                //开启被禁用的
+                BanControllers(2);
+            }
+             
+        }
+
+        /// <summary>
+        /// 【禁用和启用控件】
+        ///  20170523
+        /// </summary>
+        /// <param name="type">禁用还是启用：1-禁用 2-启用</param>
+        private void BanControllers(int type = 1)
+        {
+            if (type == 1)
+            {
+                //禁用按钮
+                cbxMacAddress.Enabled = false;//【从机地址】
+                btnSetting.Enabled = false;//【设置串口】
+                button1.Enabled = false;//【连接】
+
+                cbxSetAddress.Enabled = false;
+                cbxSetBaudRate.Enabled = false;
+                cbxSetParity.Enabled = false;
+            }
+            else
+            {
+                //禁用按钮
+                cbxMacAddress.Enabled = true;//【从机地址】
+                btnSetting.Enabled = true;//【设置串口】
+                button1.Enabled = true;//【连接】
+
+                cbxSetAddress.Enabled = true;
+                cbxSetBaudRate.Enabled = true;
+                cbxSetParity.Enabled = true;
+            }
+        }
+
+        
+
+        /// <summary>
+        /// 【读取串口-线程循环执行方法】
+        ///  20170522
+        /// </summary>
+        private void RunAction(object sender, EventArgs e)
+        {
+            if (k1 >= 63)
+            {
+                //暂停定时器
+                timer1.Stop();
+                timer1.Dispose();
+                btnRead.Text = "读取串口";
+
+                //判断是否成功
+                if (!isReadOK)
+                {
+                    ShowMessage(2, "读取串口失败!");
+                }
+            }
+            else
+            {
+                if (k2 >= brate.Length)//7
+                {
+                    k2 = 0;
+                    k1++;//修改从机型号
+                }
+                else
+                {
+                    if (k3 >= p.Length )//2
+                    {
+                        k3 = 0;
+                        k2++;//修改波特率
+                    }
+                    else
+                    {
+                        sp.BaudRate = brate[k2];//修改波特率
+                        sp.Parity = p[k3];//修改奇偶校验
+                        if (!isReadOK)
+                        {
+                            //发送数据
+                            SendData("0" + k1, "03", "00", "01");
+                            //tbxShowData.Text += "k1=" + k1 + ", k2=" + k2 + ",k3=" + k3 + "\r\n";
+                            k3++;//修改奇偶校验位
+                        }
+                        else
+                        {
+                            string[] p2 = {"无校验", "奇校验","偶校验"};
+                            timer1.Dispose();
+                            k1 = 1;
+                            k2 = k3 = 0;//初始化数据
+                            btnRead.Text = "读取串口";
+                            tbxShowData.Text = "串口读取成功\r\n" + "从机地址为：[" + k1 + "]\r\n波特率为：[" + brate[k2] + "]\r\n奇偶校验为：[" + p2[k3]+"]";
+                        }
+                    }
+                }
+            }
+
+            //MessageBox.Show("k1="+k1+", k2="+k2+",k3="+k3);
+            //MessageBox.Show(isOpen.ToString());
+        }
+
+        /// <summary>
+        /// 【设置串口点击事件】
+        ///  20170519
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void btnSetting_Click(object sender, EventArgs e)
+        {
+            Send13KLongFrame();
+        }
+
+        /// <summary>
+        /// 【发送设置串口的长数据帧数据】
+        ///  20170523
+        /// </summary>
+        private void Send13KLongFrame()
+        {
+            string setaddr = cbxSetAddress.Text.Trim();
+            string setbaudrate = cbxSetBaudRate.Text.Trim();
+            string setparity = cbxSetParity.Text.Trim();
+            if (string.IsNullOrEmpty(setaddr) || string.IsNullOrEmpty(setbaudrate) || string.IsNullOrEmpty(setparity))
+            {
+                ShowMessage(2, "请设置左边的参数");
+                return;
+            }
+            else
+            {
+                //奇偶校验位转换
+                if (setparity == "无")
+                    setparity = "00";
+                else if (setparity == "奇校验")
+                    setparity = "01";
+                else
+                    setparity = "10";
+
+                //波特率转换
+                string[] ss = {"000","001","010","011","100","101","110","111"};
+                setbaudrate = ss[cbxSetBaudRate.SelectedIndex];
+            }
+
+            if (!isOpen)
+                SetPortProperty();//设置并打开串口
+
+            //01 10 00 08 00 02 04 xx xx xx  xx CRC
+            //000+校验位2位+波特率3位
+            byte[] data =  
+            { 
+                Convert.ToByte(setaddr,16),//从机地址
+                Convert.ToByte("10",16),
+                Convert.ToByte("00",16),
+                Convert.ToByte("08",16),
+                Convert.ToByte("00",16),
+                Convert.ToByte("02",16),
+                Convert.ToByte("04",16),
+                Convert.ToByte("00",16),
+                Convert.ToByte("0"+setparity.Substring(0,1),16),//0 + 奇偶校验位第一位
+                Convert.ToByte(setparity.Substring(1,1)+setbaudrate.Substring(0,1),16),//奇偶校验位第二位 + 波特率第一位
+                Convert.ToByte(setbaudrate.Substring(1,2),16),//波特率第二三位
+
+            };
+
+            //str = str.PadLeft(8, '0');
+            //string.Format("{0:}", Convert.ToInt32(str, 2));
+
+            //MessageBox.Show("你点击了" + string.Format("{0:X}", Convert.ToInt32(str, 2)).PadLeft(2,'0'));
+
+            MyModbus modbus = new MyModbus();
+            byte[] text = modbus.Get13kReadFrame(data);
+            sp.Write(text, 0, 13);
+
+            ShowDataByTBX(1, BitConverter.ToString(text));
+        }
 
     }
 }

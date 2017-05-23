@@ -140,7 +140,7 @@ namespace 硬件调试
         ///  20170518
         /// </summary>
         /// <param name="sdata"></param>
-        /// <returns></returns>
+        /// <returns>10 字节的数据帧</returns>
         public byte[] GetLongReadFrame(byte[] sdata)
         {
             //从机地址，
@@ -175,6 +175,35 @@ namespace 硬件调试
 
             message[8] = WORD_HI(crc);//CRC校验码高位
             message[9] = WORD_LO(crc);//CRC校验码低位
+
+            return message;
+        }
+
+        public byte[] Get13kReadFrame(byte[] sdata)
+        {
+            //01 10 00 08 00 02 04 xx xx xx  xx CRC
+            ushort crc;
+
+            byte[] message = new byte[13];
+            message[0] = sdata[0];
+            message[1] = sdata[1];
+            message[2] = sdata[2];
+            message[3] = sdata[3];
+            message[4] = sdata[4];
+            message[5] = sdata[5];
+            message[6] = sdata[6];
+            message[7] = sdata[7];
+            message[8] = sdata[8];
+            message[9] = sdata[9];
+            message[10] = sdata[10];
+           
+
+
+            //设置 CRC
+            crc = CRC16(message, 0, 10);
+
+            message[11] = WORD_HI(crc);//CRC校验码高位
+            message[12] = WORD_LO(crc);//CRC校验码低位
 
             return message;
         }
